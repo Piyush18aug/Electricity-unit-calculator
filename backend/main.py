@@ -8,8 +8,11 @@ from app.core.config import settings
 from app.database.session import engine, Base
 from app.routers import auth, api
 
-# Initialize database tables automatically
-Base.metadata.create_all(bind=engine)
+# Initialize database tables automatically (safely for multi-worker servers like gunicorn)
+try:
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+except Exception as e:
+    print(f"Database initialization info: {e}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
