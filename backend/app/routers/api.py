@@ -231,7 +231,17 @@ def add_meter_reading(reading_in: MeterReadingCreate, db: Session = Depends(get_
             # Close cycle
             active_cycle.actual_end_date = captured_time
             active_cycle.closing_meter_reading = reading_in.reading_value
-            active_cycle.total_units = max(0.0, reading_in.reading_value - active_cycle.opening_meter_reading)
+            
+            # Calculate total units by summing consumptions in this cycle
+            cycle_readings = db.query(MeterReading).filter(
+                MeterReading.meter_id == meter.id, 
+                MeterReading.captured_at >= active_cycle.actual_start_date
+            ).all()
+            # If new_reading is already flushed it might be in cycle_readings, else add its consumption
+            if new_reading not in cycle_readings:
+                cycle_readings.append(new_reading)
+                
+            active_cycle.total_units = sum(r.consumption for r in cycle_readings)
             active_cycle.status = "COMPLETED"
             
             # Compute bill for cycle

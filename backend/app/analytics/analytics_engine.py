@@ -61,8 +61,10 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
     
     # Month to Date kWh (Billing Cycle logic)
     if active_cycle and sorted_readings:
-        latest_reading = sorted_readings[-1].reading_value
-        mtd_kwh = max(0.0, latest_reading - active_cycle.opening_meter_reading)
+        cycle_start = active_cycle.actual_start_date
+        cycle_readings = [r for r in sorted_readings if r.captured_at >= cycle_start]
+        mtd_kwh = sum(r.consumption for r in cycle_readings)
+        
         cycle_start_date = active_cycle.actual_start_date.strftime("%Y-%m-%d")
         cycle_end_date = active_cycle.scheduled_end_date.strftime("%Y-%m-%d")
         delta = (active_cycle.scheduled_end_date.date() - today).days
