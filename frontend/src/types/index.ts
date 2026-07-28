@@ -71,6 +71,8 @@ export interface AnalyticsData {
   mtd_electricity_duty: number;
   mtd_additional_charge: number;
   missing_components: string[];
+  forecast_confidence?: string;
+  projected_bill_breakdown?: Record<string, any>;
   cycle_status: string;
   energy_score: number;
   energy_rating: string;
