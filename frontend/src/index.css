@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased font-sans min-h-screen selection:bg-emerald-500 selection:text-white transition-colors duration-300;
+  }
+}
+
+/* Light Theme Support via CSS Filter Invert */
+html.theme-light {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: white;
+}
+html.theme-light img,
+html.theme-light video,
+html.theme-light .recharts-responsive-container,
+html.theme-light svg:not(.lucide) {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Glassmorphism utility classes */
+.glass-card {
+  @apply bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl hover:border-slate-700/80 transition-all duration-300;
+}
+
+.glass-pill {
+  @apply bg-slate-800/60 backdrop-blur-md border border-slate-700/50 rounded-full px-4 py-1 text-sm font-medium;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

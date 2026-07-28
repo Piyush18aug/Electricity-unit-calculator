@@ -1,0 +1,33 @@
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+.env.*.local
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Databases & Uploads
+*.db
+*.sqlite
+*.sqlite3
+backend/app.db
+backend/wattwise.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# IDE / System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
