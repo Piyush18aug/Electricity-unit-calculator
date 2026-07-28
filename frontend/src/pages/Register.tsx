@@ -28,7 +28,14 @@ export const Register: React.FC = () => {
       await register(fullName, email, password);
       navigate('/onboarding');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create account.');
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else if (Array.isArray(detail)) {
+        setError(detail.map((d: any) => d.msg || JSON.stringify(d)).join(', '));
+      } else {
+        setError('Failed to create account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
