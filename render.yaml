@@ -1,24 +1,13 @@
 services:
-  # FastAPI Backend Web Service
+  # Fullstack Web Service (Frontend + Backend in 1 Single Deployment)
   - type: web
-    name: wattwise-backend
+    name: electricity-unit-calculator
     env: python
     region: singapore
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt
     startCommand: cd backend && gunicorn main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
         value: sqlite:///./wattwise.db
-
-  # React / Vite Static Site Frontend
-  - type: web
-    name: wattwise-frontend
-    env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html

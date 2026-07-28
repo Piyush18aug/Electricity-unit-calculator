@@ -28,6 +28,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import FileResponse
+
 # Mount Uploads directory for static image access
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
@@ -36,14 +38,30 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(api.router, prefix=settings.API_V1_STR)
 
-@app.get("/")
-def root():
-    return {
-        "app": settings.PROJECT_NAME,
-        "version": "1.0.0",
-        "status": "online",
-        "docs_url": "/docs"
-    }
+# Serve Frontend static files if dist folder exists
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="static_assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Allow API routes to be handled by routers
+        if full_path.startswith("api/") or full_path.startswith("uploads/"):
+            return None
+        file_path = os.path.join(frontend_dist, full_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+else:
+    @app.get("/")
+    def root():
+        return {
+            "app": settings.PROJECT_NAME,
+            "version": "1.0.0",
+            "status": "online",
+            "docs_url": "/docs"
+        }
 
 if __name__ == "__main__":
     import uvicorn
