@@ -15,28 +15,38 @@ def calculate_energy_charge(units_kwh: float, tariff: Tariff) -> float:
 
     total_energy_charge = 0.0
 
+    # Ensure contiguous boundaries mathematically (e.g., 101 -> 100 as boundary)
+    contiguous_slabs = []
+    current_min = 0.0
+    for slab in slabs:
+        max_u = slab.max_units if slab.max_units is not None else float('inf')
+        # We adjust boundaries so 101 becomes >100
+        # If user entered 101, but prev max was 100, we use 100 as the math boundary.
+        # So we just use current_min as the start.
+        contiguous_slabs.append({
+            "min_units": current_min,
+            "max_units": max_u,
+            "rate": slab.rate
+        })
+        current_min = max_u
+
     if getattr(tariff, "calculation_method", "PROGRESSIVE") == "BRACKET":
-        applicable_rate = slabs[-1].rate
-        for slab in slabs:
-            min_u = slab.min_units
-            max_u = slab.max_units if slab.max_units is not None else float('inf')
-            if min_u < units_kwh <= max_u:
-                applicable_rate = slab.rate
+        applicable_rate = contiguous_slabs[-1]["rate"]
+        for slab in contiguous_slabs:
+            if slab["min_units"] < units_kwh <= slab["max_units"]:
+                applicable_rate = slab["rate"]
                 break
             elif units_kwh == 0:
-                applicable_rate = slab.rate
+                applicable_rate = slab["rate"]
                 break
         total_energy_charge = units_kwh * applicable_rate
     else:
         # PROGRESSIVE
-        for slab in slabs:
-            min_u = slab.min_units
-            max_u = slab.max_units if slab.max_units is not None else float('inf')
-
-            if units_kwh > min_u:
-                taxable_units_in_slab = min(units_kwh, max_u) - min_u
+        for slab in contiguous_slabs:
+            if units_kwh > slab["min_units"]:
+                taxable_units_in_slab = min(units_kwh, slab["max_units"]) - slab["min_units"]
                 if taxable_units_in_slab > 0:
-                    total_energy_charge += taxable_units_in_slab * slab.rate
+                    total_energy_charge += taxable_units_in_slab * slab["rate"]
 
     return round(total_energy_charge, 2)
 
@@ -54,24 +64,24 @@ def calculate_total_electricity_bill(units_kwh: float, tariff: Tariff) -> Dict[s
             "units_kwh": units_kwh,
             "energy_charge": round(energy, 2),
             "fixed_charge": fixed,
-            "wheeling_charge": 0.0,
-            "fuel_adjustment_charge": 0.0,
+            "wheeling_charge": None,
+            "fuel_adjustment_charge": None,
             "electricity_duty": round(tax, 2),
             "additional_charge": 0.0,
             "tax_amount": round(tax, 2), # Legacy compat
             "total_amount": round(total, 2),
-            "missing_components": []
+            "missing_components": ["Wheeling Charge", "Fuel Adjustment"]
         }
 
     energy_charge = calculate_energy_charge(units_kwh, tariff)
     
-    # Initialize components
+    # Initialize components (None means Not Configured)
     components = {
-        "Fixed Charge": 0.0,
-        "Wheeling Charge": 0.0,
-        "Fuel Adjustment": None, # None means not configured
-        "Electricity Duty": 0.0,
-        "Other Charges": 0.0
+        "Fixed Charge": None,
+        "Wheeling Charge": None,
+        "Fuel Adjustment": None,
+        "Electricity Duty": None,
+        "Other Charges": None
     }
 
     # Helper to calculate a rule amount
@@ -81,9 +91,9 @@ def calculate_total_electricity_bill(units_kwh: float, tariff: Tariff) -> Dict[s
         if rule.rule_type == "BRACKET": return rule.rate # Assuming simple bracket flat rate for now
         return 0.0
 
-    # Pass 1: Calculate non-percentage components
     has_rules = hasattr(tariff, "component_rules") and tariff.component_rules
     if has_rules:
+        # Pass 1: Calculate non-percentage components
         for rule in tariff.component_rules:
             if rule.rule_type != "PERCENTAGE":
                 amt = calc_rule(rule)
@@ -92,16 +102,17 @@ def calculate_total_electricity_bill(units_kwh: float, tariff: Tariff) -> Dict[s
                 else:
                     components[rule.component_name] += amt
 
-    # Pass 2: Calculate percentage components (like Duty)
-    if has_rules:
+        # Pass 2: Calculate percentage components (like Duty)
         for rule in tariff.component_rules:
             if rule.rule_type == "PERCENTAGE":
                 base_sum = 0.0
                 if rule.duty_base_components:
                     bases = [b.strip() for b in rule.duty_base_components.split(',')]
                     for b in bases:
-                        if b == "Energy Charge": base_sum += energy_charge
-                        elif b in components and components[b] is not None: base_sum += components[b]
+                        if b == "ENERGY_CHARGE" or b == "Energy Charge": 
+                            base_sum += energy_charge
+                        elif b in components and components[b] is not None: 
+                            base_sum += components[b]
                 else:
                     base_sum = energy_charge + (components["Fixed Charge"] or 0)
                 
@@ -111,7 +122,7 @@ def calculate_total_electricity_bill(units_kwh: float, tariff: Tariff) -> Dict[s
                 else:
                     components[rule.component_name] += amt
 
-    # Fallback to legacy if no rules are configured
+    # Fallback to legacy if no rules are configured for Fixed Charge or Duty
     if not has_rules:
         if tariff.tariff_type == "slab":
             if units_kwh <= 100: components["Fixed Charge"] = 150.0
@@ -127,10 +138,17 @@ def calculate_total_electricity_bill(units_kwh: float, tariff: Tariff) -> Dict[s
 
     # Missing components tracking
     missing = []
+    # Identify which ones are strictly required / expected to exist in a full tariff
+    if components["Wheeling Charge"] is None:
+        missing.append("Wheeling Charge")
     if components["Fuel Adjustment"] is None:
         missing.append("Fuel Adjustment")
-        components["Fuel Adjustment"] = 0.0
+    if components["Fixed Charge"] is None:
+        missing.append("Fixed Charge")
+    if components["Electricity Duty"] is None:
+        missing.append("Electricity Duty")
 
+    # For the calculation of the total amount, we treat None as 0
     fixed_c = components["Fixed Charge"] or 0.0
     wheeling_c = components["Wheeling Charge"] or 0.0
     fuel_c = components["Fuel Adjustment"] or 0.0
@@ -142,12 +160,12 @@ def calculate_total_electricity_bill(units_kwh: float, tariff: Tariff) -> Dict[s
     return {
         "units_kwh": units_kwh,
         "energy_charge": round(energy_charge, 2),
-        "fixed_charge": round(fixed_c, 2),
-        "wheeling_charge": round(wheeling_c, 2),
-        "fuel_adjustment_charge": round(fuel_c, 2),
-        "electricity_duty": round(duty_c, 2),
-        "additional_charge": round(other_c, 2),
-        "tax_amount": round(duty_c, 2), # Legacy fallback
+        "fixed_charge": round(fixed_c, 2) if components["Fixed Charge"] is not None else None,
+        "wheeling_charge": round(wheeling_c, 2) if components["Wheeling Charge"] is not None else None,
+        "fuel_adjustment_charge": round(fuel_c, 2) if components["Fuel Adjustment"] is not None else None,
+        "electricity_duty": round(duty_c, 2) if components["Electricity Duty"] is not None else None,
+        "additional_charge": round(other_c, 2) if components["Other Charges"] is not None else None,
+        "tax_amount": round(duty_c, 2) if components["Electricity Duty"] is not None else 0.0, # Legacy fallback
         "total_amount": round(total_amount, 2),
         "missing_components": missing
     }

@@ -131,13 +131,16 @@ export const Dashboard: React.FC = () => {
         >
           <div>
             <div className="flex justify-between items-start">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estimated Cycle Bill</span>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {data.missing_components?.length > 0 ? "Partial Estimated Bill So Far" : "Estimated Bill So Far"}
+              </span>
               <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
                 {data.currency_code}
               </div>
             </div>
             <div className="mt-3">
               <h2 className="text-3xl font-black text-white">{formatCurrency(data.month_to_date_cost, data.currency_code)}</h2>
+              <p className="text-[11px] text-slate-400 mt-1">Based on <strong className="text-slate-200">{data.month_to_date_kwh} kWh</strong> consumed</p>
               {data.missing_components?.length > 0 && (
                 <p className="text-[10px] text-amber-400 mt-1 leading-tight">
                   <AlertTriangle size={10} className="inline mr-1" />
@@ -196,20 +199,27 @@ export const Dashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Estimated Month-End Bill */}
+        {/* Projected End-of-Cycle Bill */}
         <motion.div
           whileHover={{ y: -4 }}
-          className="glass-card p-5"
+          className="glass-card p-5 relative overflow-hidden"
         >
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estimated Bill</span>
-            <div className="w-9 h-9 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center">
-              <ArrowUpRight size={20} />
+          {data.forecast_confidence && (
+            <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-bl-lg ${
+              data.forecast_confidence === 'Low' ? 'bg-rose-500/20 text-rose-400' :
+              data.forecast_confidence === 'Medium' ? 'bg-amber-500/20 text-amber-400' :
+              'bg-emerald-500/20 text-emerald-400'
+            }`}>
+              {data.forecast_confidence} Confidence
             </div>
+          )}
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-1 flex items-center gap-1"><Sparkles size={12}/> Forecast</span>
           </div>
           <div className="mt-3">
+            <p className="text-[11px] text-slate-400 mb-1">Projected End-of-Cycle Bill</p>
             <h2 className="text-3xl font-black text-white">{formatCurrency(data.estimated_month_end_bill, data.currency_code)}</h2>
-            <p className="text-xs text-slate-400 mt-2">Projected end: <strong className="text-slate-200">{data.projected_month_end_kwh} kWh</strong></p>
+            <p className="text-[11px] text-slate-400 mt-2">Projected usage: <strong className="text-slate-200">{data.projected_month_end_kwh} kWh</strong></p>
           </div>
         </motion.div>
       </div>

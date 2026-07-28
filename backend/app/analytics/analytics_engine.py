@@ -33,13 +33,15 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
             "recommended_daily_kwh": 0.0,
             "cycle_start_date": "",
             "cycle_end_date": "",
-            "mtd_energy_charge": 0.0,
-            "mtd_fixed_charge": 0.0,
-            "mtd_wheeling_charge": 0.0,
-            "mtd_fuel_adjustment": 0.0,
-            "mtd_electricity_duty": 0.0,
-            "mtd_additional_charge": 0.0,
+            "mtd_energy_charge": None,
+            "mtd_fixed_charge": None,
+            "mtd_wheeling_charge": None,
+            "mtd_fuel_adjustment": None,
+            "mtd_electricity_duty": None,
+            "mtd_additional_charge": None,
             "missing_components": [],
+            "projected_bill_breakdown": {},
+            "forecast_confidence": "Low",
             "energy_score": 85,
             "energy_rating": "Good",
             "insights": ["Record your initial meter readings to unlock personalized energy insights!"],
@@ -59,6 +61,7 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
     # Today's usage (most recent reading consumption if today, else last recorded)
     today_kwh = sorted_readings[-1].consumption if sorted_readings else 0.0
     
+    elapsed_days = 1
     # Month to Date kWh (Billing Cycle logic)
     if active_cycle and sorted_readings:
         cycle_start = active_cycle.actual_start_date
@@ -67,42 +70,49 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
         
         cycle_start_date = active_cycle.actual_start_date.strftime("%Y-%m-%d")
         cycle_end_date = active_cycle.scheduled_end_date.strftime("%Y-%m-%d")
+        
+        # Calculate elapsed days accurately
+        elapsed_days = max(1, (today - active_cycle.actual_start_date.date()).days)
+        
         delta = (active_cycle.scheduled_end_date.date() - today).days
         days_remaining = max(0, delta)
     else:
         mtd_kwh = sum(r.consumption for r in current_month_readings)
         days_in_month = calendar.monthrange(today.year, today.month)[1]
+        
+        elapsed_days = max(1, today.day)
         days_remaining = max(1, days_in_month - today.day)
+        
         cycle_start_date = f"{today.year}-{today.month:02d}-01"
         cycle_end_date = f"{today.year}-{today.month:02d}-{days_in_month:02d}"
 
-    # Calculate average daily kWh
+    # Calculate average daily kWh (global)
     daily_avg_kwh = float(np.mean(consumptions)) if consumptions else 5.0
 
     # Today vs Average percentage comparison
     today_vs_avg_pct = round(((today_kwh - daily_avg_kwh) / daily_avg_kwh) * 100, 1) if daily_avg_kwh > 0 else 0.0
 
-    # Linear / Weighted Moving Average Projection
-    if len(consumptions) >= 3:
-        recent_avg = np.average(consumptions[-5:], weights=range(1, len(consumptions[-5:]) + 1))
-    else:
-        recent_avg = daily_avg_kwh
-
-    projected_remaining_kwh = recent_avg * days_remaining
+    # FORECASTING LOGIC
+    # Average daily consumption specifically for the current cycle
+    cycle_daily_avg = mtd_kwh / elapsed_days if elapsed_days > 0 else daily_avg_kwh
+    
+    projected_remaining_kwh = cycle_daily_avg * days_remaining
     projected_month_end_kwh = round(mtd_kwh + projected_remaining_kwh, 1)
+    
+    # Forecast Confidence based on elapsed days
+    if elapsed_days < 3:
+        forecast_confidence = "Low"
+    elif elapsed_days < 15:
+        forecast_confidence = "Medium"
+    else:
+        forecast_confidence = "High"
 
-    # Costs calculation
+    # Costs calculation using the unified engine
     today_cost_breakdown = calculate_total_electricity_bill(today_kwh, tariff)
     today_cost = today_cost_breakdown["total_amount"]
 
     mtd_cost_breakdown = calculate_total_electricity_bill(mtd_kwh, tariff)
     mtd_cost = mtd_cost_breakdown["total_amount"]
-    mtd_energy_charge = mtd_cost_breakdown.get("energy_charge", 0.0)
-    mtd_fixed_charge = mtd_cost_breakdown.get("fixed_charge", 0.0)
-    mtd_wheeling_charge = mtd_cost_breakdown.get("wheeling_charge", 0.0)
-    mtd_fuel_adjustment = mtd_cost_breakdown.get("fuel_adjustment_charge", 0.0)
-    mtd_electricity_duty = mtd_cost_breakdown.get("electricity_duty", 0.0)
-    mtd_additional_charge = mtd_cost_breakdown.get("additional_charge", 0.0)
     missing_components = mtd_cost_breakdown.get("missing_components", [])
 
     projected_bill_breakdown = calculate_total_electricity_bill(projected_month_end_kwh, tariff)
@@ -113,10 +123,9 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
     target_progress_pct = round((mtd_kwh / target_kwh) * 100, 1) if target_kwh > 0 else 0.0
 
     kwh_remaining = max(0.0, target_kwh - mtd_kwh)
-    recommended_daily_kwh = round(kwh_remaining / days_remaining, 1)
+    recommended_daily_kwh = round(kwh_remaining / days_remaining, 1) if days_remaining > 0 else 0.0
 
     # Energy Score (0 - 100) Algorithm
-    # Factors: Target performance (40%), Stability/Anomalies (30%), Trend vs last period (30%)
     score = 100
     if target_progress_pct > 100:
         score -= min(35, (target_progress_pct - 100) * 0.8)
@@ -180,13 +189,19 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
         "days_remaining": days_remaining,
         "cycle_start_date": cycle_start_date,
         "cycle_end_date": cycle_end_date,
-        "mtd_energy_charge": mtd_energy_charge,
-        "mtd_fixed_charge": mtd_fixed_charge,
-        "mtd_wheeling_charge": mtd_wheeling_charge,
-        "mtd_fuel_adjustment": mtd_fuel_adjustment,
-        "mtd_electricity_duty": mtd_electricity_duty,
-        "mtd_additional_charge": mtd_additional_charge,
+        
+        # MTD bill components
+        "mtd_energy_charge": mtd_cost_breakdown.get("energy_charge"),
+        "mtd_fixed_charge": mtd_cost_breakdown.get("fixed_charge"),
+        "mtd_wheeling_charge": mtd_cost_breakdown.get("wheeling_charge"),
+        "mtd_fuel_adjustment": mtd_cost_breakdown.get("fuel_adjustment_charge"),
+        "mtd_electricity_duty": mtd_cost_breakdown.get("electricity_duty"),
+        "mtd_additional_charge": mtd_cost_breakdown.get("additional_charge"),
+        
         "missing_components": missing_components,
+        "projected_bill_breakdown": projected_bill_breakdown,
+        "forecast_confidence": forecast_confidence,
+        
         "cycle_status": active_cycle.status if active_cycle else "ACTIVE",
         "energy_score": energy_score,
         "energy_rating": rating,
