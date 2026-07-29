@@ -58,8 +58,9 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
     today = date.today()
     current_month_readings = [r for r in sorted_readings if r.captured_at.year == today.year and r.captured_at.month == today.month]
 
-    # Today's usage (most recent reading consumption if today, else last recorded)
-    today_kwh = sorted_readings[-1].consumption if sorted_readings else 0.0
+    # Today's usage (sum of all consumptions recorded today)
+    today_readings = [r for r in sorted_readings if r.captured_at.date() == today]
+    today_kwh = sum(r.consumption for r in today_readings) if today_readings else 0.0
     
     elapsed_days = 1
     # Month to Date kWh (Billing Cycle logic)

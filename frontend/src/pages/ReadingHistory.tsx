@@ -210,19 +210,7 @@ export const ReadingHistory: React.FC = () => {
                 />
               </div>
               
-              <div className="flex items-center space-x-2 mt-4">
-                <input
-                  type="checkbox"
-                  id="official-reading"
-                  checked={isOfficial}
-                  onChange={(e) => setIsOfficial(e.target.checked)}
-                  className="w-4 h-4 text-emerald-500 bg-slate-900 border-slate-700 rounded accent-emerald-500"
-                />
-                <label htmlFor="official-reading" className="text-sm font-medium text-slate-300 cursor-pointer">
-                  Mark as Official Monthly Reading
-                </label>
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1 ml-6">Checking this will close the current billing cycle and start a new one.</p>
+              {/* Official Reading checkbox removed as per user request to simplify entering kwh */}
 
               <div className="flex space-x-3 pt-4">
                 <button

@@ -190,13 +190,8 @@ def add_meter_reading(reading_in: MeterReadingCreate, db: Session = Depends(get_
     # Fetch latest previous reading
     prev_reading = db.query(MeterReading).filter(MeterReading.meter_id == meter.id).order_by(MeterReading.captured_at.desc()).first()
 
-    # Validation Checks
-    if not reading_in.is_reset_or_replacement and prev_reading:
-        if reading_in.reading_value < prev_reading.reading_value:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Verification Required: Current reading ({reading_in.reading_value}) cannot be lower than previous reading ({prev_reading.reading_value})."
-            )
+    # Validation Checks removed as per user request to avoid verification blocking
+
 
     consumption = 0.0
     if prev_reading:
