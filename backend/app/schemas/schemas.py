@@ -310,3 +310,8 @@ class BillingCycleOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class BillingCycleUpdate(BaseModel):
+    start_date: datetime
+    end_date: datetime
+

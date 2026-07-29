@@ -13,7 +13,8 @@ import {
   Sparkles, 
   Target, 
   Award, 
-  ArrowUpRight 
+  ArrowUpRight,
+  Edit2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMeter } from '../contexts/MeterContext';
@@ -26,6 +27,25 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  
+  const [showCycleModal, setShowCycleModal] = useState(false);
+  const [cycleStartDate, setCycleStartDate] = useState('');
+  const [cycleEndDate, setCycleEndDate] = useState('');
+
+  const handleCycleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMeter) return;
+    try {
+      await api.put(`/meters/${selectedMeter.id}/billing-cycle`, {
+        start_date: new Date(cycleStartDate).toISOString(),
+        end_date: new Date(cycleEndDate).toISOString(),
+      });
+      setShowCycleModal(false);
+      fetchAnalytics();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update billing cycle');
+    }
+  };
 
   const fetchAnalytics = async () => {
     if (!selectedMeter) return;
@@ -174,7 +194,16 @@ export const Dashboard: React.FC = () => {
           className="glass-card p-5"
         >
           <div className="flex justify-between items-start">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current Billing Cycle</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              Current Billing Cycle
+              <button onClick={() => {
+                setCycleStartDate(data.cycle_start_date);
+                setCycleEndDate(data.cycle_end_date);
+                setShowCycleModal(true);
+              }} className="text-slate-500 hover:text-emerald-400 transition">
+                <Edit2 size={14} />
+              </button>
+            </span>
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
               <Target size={20} />
             </div>
@@ -286,6 +315,51 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {showCycleModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-card max-w-sm w-full p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white">Edit Billing Cycle Dates</h3>
+            <form onSubmit={handleCycleUpdate} className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  required
+                  value={cycleStartDate}
+                  onChange={(e) => setCycleStartDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white outline-none focus:border-emerald-500 [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">End Date</label>
+                <input
+                  type="date"
+                  required
+                  value={cycleEndDate}
+                  onChange={(e) => setCycleEndDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white outline-none focus:border-emerald-500 [color-scheme:dark]"
+                />
+              </div>
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCycleModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

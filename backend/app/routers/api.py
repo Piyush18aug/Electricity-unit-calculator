@@ -8,7 +8,7 @@ import uuid
 
 from app.database.session import get_db
 from app.models.models import User, Property, Meter, MeterReading, Tariff, TariffSlab, MonthlyTarget, UserSettings, ReadingRevision, Appliance, Bill, Notification, BillingCycle
-from app.schemas.schemas import OnboardingRequest, PropertyCreate, PropertyOut, MeterCreate, MeterOut, MeterReadingCreate, MeterReadingOut, ReadingUpdate, ApplianceCreate, ApplianceOut, BillCreate, BillOut, NotificationOut
+from app.schemas.schemas import OnboardingRequest, PropertyCreate, PropertyOut, MeterCreate, MeterOut, MeterReadingCreate, MeterReadingOut, ReadingUpdate, ApplianceCreate, ApplianceOut, BillCreate, BillOut, NotificationOut, BillingCycleUpdate
 from app.routers.auth import get_current_user
 from app.services.tariff_service import calculate_total_electricity_bill
 from app.analytics.analytics_engine import calculate_analytics
@@ -284,6 +284,27 @@ def delete_reading(reading_id: int, db: Session = Depends(get_db), current_user:
 
 
 
+
+
+@router.put("/meters/{meter_id}/billing-cycle")
+def update_billing_cycle(meter_id: int, cycle_update: BillingCycleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    meter = db.query(Meter).filter(Meter.id == meter_id, Meter.property.has(user_id=current_user.id)).first()
+    if not meter:
+        raise HTTPException(status_code=404, detail="Meter not found")
+
+    active_cycle = db.query(BillingCycle).filter(
+        BillingCycle.meter_id == meter_id,
+        BillingCycle.status.in_(["ACTIVE", "AWAITING_OFFICIAL_READING"])
+    ).order_by(BillingCycle.scheduled_end_date.desc()).first()
+
+    if not active_cycle:
+        raise HTTPException(status_code=404, detail="No active billing cycle found to update")
+
+    active_cycle.actual_start_date = cycle_update.start_date
+    active_cycle.scheduled_start_date = cycle_update.start_date
+    active_cycle.scheduled_end_date = cycle_update.end_date
+    db.commit()
+    return {"status": "success", "message": "Billing cycle updated successfully"}
 
 
 # DASHBOARD & ANALYTICS
