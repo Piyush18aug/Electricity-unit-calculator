@@ -106,7 +106,7 @@ export const Dashboard: React.FC = () => {
           className="glass-card p-5 relative overflow-hidden"
         >
           <div className="flex justify-between items-start">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Today's Consumption</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Latest Consumption</span>
             <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <Zap size={20} />
             </div>

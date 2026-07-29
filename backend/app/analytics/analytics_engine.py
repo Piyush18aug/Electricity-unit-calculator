@@ -58,22 +58,28 @@ def calculate_analytics(readings: List[MeterReading], target: Optional[MonthlyTa
     today = date.today()
     current_month_readings = [r for r in sorted_readings if r.captured_at.year == today.year and r.captured_at.month == today.month]
 
-    # Today's usage (sum of all consumptions recorded today)
-    today_readings = [r for r in sorted_readings if r.captured_at.date() == today]
-    today_kwh = sum(r.consumption for r in today_readings) if today_readings else 0.0
+    # Today's/Latest usage
+    today_kwh = sorted_readings[-1].consumption if sorted_readings else 0.0
     
     elapsed_days = 1
     # Month to Date kWh (Billing Cycle logic)
     if active_cycle and sorted_readings:
         cycle_start = active_cycle.actual_start_date
         cycle_readings = [r for r in sorted_readings if r.captured_at >= cycle_start]
+        
+        # Fallback for new accounts with backdated readings
+        if not cycle_readings:
+            cycle_readings = [r for r in sorted_readings if r.captured_at.year == active_cycle.scheduled_end_date.year and r.captured_at.month == active_cycle.scheduled_end_date.month]
+            if cycle_readings:
+                cycle_start = cycle_readings[0].captured_at
+                
         mtd_kwh = sum(r.consumption for r in cycle_readings)
         
-        cycle_start_date = active_cycle.actual_start_date.strftime("%Y-%m-%d")
+        cycle_start_date = cycle_start.strftime("%Y-%m-%d") if isinstance(cycle_start, datetime) else cycle_start
         cycle_end_date = active_cycle.scheduled_end_date.strftime("%Y-%m-%d")
         
         # Calculate elapsed days accurately
-        elapsed_days = max(1, (today - active_cycle.actual_start_date.date()).days)
+        elapsed_days = max(1, (today - cycle_start.date()).days if isinstance(cycle_start, datetime) else 1)
         
         delta = (active_cycle.scheduled_end_date.date() - today).days
         days_remaining = max(0, delta)
